@@ -59,5 +59,8 @@ class Collection:
         if pipelines[0].keys()[0] != "$find":
             self.find({})
 
-        self.col = Aggregator(self.col).aggregate(pipelines)
+        aggregator = Aggregator(self.col)
+
+        aggregator.aggregate(pipelines)
+        self.col = aggregator.col
 
