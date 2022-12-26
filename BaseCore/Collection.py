@@ -2,7 +2,7 @@ from ..Commons.Types.TypeInstances import references as type_ref
 import json
 from ..Commons.Operations.OperatorHandler import OperatorHandler as Op
 from ..Commons.Errors.DBInputErrors import *
-import Aggregator
+from Aggregator import Aggregator
 
 
 class Collection:
@@ -59,5 +59,5 @@ class Collection:
         if pipelines[0].keys()[0] != "$find":
             self.find({})
 
-        Aggregator(collection=self.col).aggregate(pipelines)
+        self.col = Aggregator(self.col).aggregate(pipelines)
 
