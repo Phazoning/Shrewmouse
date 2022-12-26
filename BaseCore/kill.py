@@ -9,5 +9,6 @@ def kill_function(array = [object], string = "ñ"):
     except MemoryError:
         kill_function(arra, stri)
 
+
 if __name__ == '__main__':
     kill_function()

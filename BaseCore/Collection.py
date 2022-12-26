@@ -2,6 +2,7 @@ from ..Commons.Types.TypeInstances import references as type_ref
 import json
 from ..Commons.Operations.OperatorHandler import OperatorHandler as Op
 from ..Commons.Errors.DBInputErrors import *
+import Aggregator
 
 
 class Collection:
@@ -12,7 +13,7 @@ class Collection:
         self.prototype = json.load(open(self.file, 'r'))["prototype"]
         self.op = Op()
 
-    def choose(self, parameters, chk_object):
+    def __choose(self, parameters, chk_object):
         hits = [True for e in chk_object.keys if "$" in parameters[e].keys[0] and
                 self.op.operate(parameters[e].keys[0], parameters[e].values[0], chk_object[e])
                 or chk_object[e] == parameters[e]]
@@ -24,7 +25,7 @@ class Collection:
     def find(self, parameters):
 
         with json.load(open(self.file, "r"))["data"] as collection_data:
-            self.col = [e for e in collection_data if self.choose(parameters, e) or parameters == {}]
+            self.col = [e for e in collection_data if self.__choose(parameters, e) or parameters == {}]
 
     def insert(self, ins_object):
 
@@ -54,6 +55,9 @@ class Collection:
             json.dump(collection_dict, open(self.file, "w"))
         self.col = []
 
-    def aggregate(self, processes):
-        if processes[0].keys[0] != "$find":
+    def aggregate(self, pipelines):
+        if pipelines[0].keys()[0] != "$find":
             self.find({})
+
+        Aggregator(collection=self.col).aggregate(pipelines)
+
