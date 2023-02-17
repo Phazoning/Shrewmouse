@@ -1,17 +1,21 @@
 from BaseCore.Collection import Collection as Col
 from ..Commons.Operations.OperatorHandler import OperatorHandler as Op
+from ..Commons.Auxiliary.AuxiliaryMethods import deep_dict_search as dds
+from BaseFile import BaseFile
 
 
 class Aggregator:
 
     # Constructor method
-    def __init__(self, collection: list[dict]) -> None:
+    def __init__(self, collection: list[dict], db_file: str) -> None:
         """
         !!!Constructor method
 
         :param collection: dictionary with the registries from the collection
+        :param db_file: String with the database data. Needed for the lookup
         """
         self.col = collection
+        self.db = db_file
 
     # General pipeline methods
 
@@ -21,39 +25,50 @@ class Aggregator:
         :param parameters: Dictionary detailing the sought parameters.
         Accepts operations (e.g. element in a list with operator "$in")
 
-        :return: None, alters "col" class parameter
+        :return: None, alters "__col" class parameter
         """
-        def is_found(chk_object):
+
+        def is_found(chk_object: dict) -> bool:
+            """
+            This method iterates over the parameter keys and checks if every key in an object checks all the conditions
+
+            :param chk_object: Object to be checked
+            :return: Boolean if the desired value/s have been found or not
+            """
             operator = Op()
-            return [True for e in chk_object.keys if "$" in [*parameters[e]][0]
-                    and operator.operate([*parameters[e]][0], [*parameters[e].values][0], chk_object[e])
-                    or chk_object[e] == parameters[e]] == [True for e in [*chk_object]]
+            ret = False
+            for e in [*parameters]:
+                ret = True if "$" in [*parameters[e]][0] \
+                              and operator.operate([*parameters[e]][0], [*parameters[e].values()][0],
+                                                   dds(chk_object, e)) \
+                              or dds(chk_object, e) == parameters[e] else False
+            return ret
 
         self.col = [e for e in self.col if is_found(e)]
 
     def __lookup(self, local_field: str, foreign_collection: str, foreign_field: str, name: str) -> None:
         """
-        Method equivalent to SQL JOIN, for all registries in "col" seeks in a second Collection
+        Method equivalent to SQL JOIN, for all registries in "__col" seeks in a second Collection
         all registries where the field "foreign_field" equals the registry's "local_field"
 
         :param local_field: Field we are using as a reference for each registry on the collection
         :param foreign_collection: Second collection where want to seek all the equaling registries from
         :param foreign_field: Reference field we are using to check equality
         :param name: name we want to give the new field in the registry
-        :return: None, alters "col" class parameter
+        :return: None, alters "__col" class parameter
         """
-        for_col = Col(foreign_collection)
+        for_col = Col([e for e in BaseFile(self.db).collections if e["name"] == foreign_collection][0], self.db)
         for_col.find({})
         for e in self.col:
-            e[name] = [j for j in for_col.col if for_col.col[foreign_field] == e[local_field]]
+            e[name] = [j for j in for_col.data_fetch() if for_col.data_fetch()[foreign_field] == e[local_field]]
 
     def __unwind(self, field: str) -> None:
         """
-        For every element in "col" gets an array and populates different registries for each value in the array
+        For every element in "__col" gets an array and populates different registries for each value in the array
         assigned to the same field as the original array
 
         :param field: String with the field we are to unwrap
-        :return: None, alters "col" class parameter
+        :return: None, alters "__col" class parameter
         """
         results = []
 
@@ -70,11 +85,11 @@ class Aggregator:
 
     def __sort(self, field: str, order: int = 1) -> None:
         """
-        Sorts "col" using a field as a reference
+        Sorts "__col" using a field as a reference
 
-        :param field: String with the name of the array we are to order "col" with
+        :param field: String with the name of the array we are to order "__col" with
         :param order: Integer denoting if we want normal or inverse order. 1 for normal, -1 for inverse, defaults to 1
-        :return: None, alters "col" class parameter
+        :return: None, alters "__col" class parameter
         """
 
         # Asserting if the "order" parameter follows an expected value
@@ -168,12 +183,12 @@ class Aggregator:
     def __group(self, key: str, fields: dict = {}) -> None:
         """
         Groups all values around a single key while performing operations.
-        It's a result pipeline method, so the result will replace "col"
+        It's a result pipeline method, so the result will replace "__col"
 
         :param key: key we'll use to group all values
         :param fields: fields we will use to perform operations while grouping.
         If empty (default) just groups all values in an array
-        :return: None, alters "col" class parameter
+        :return: None, alters "__col" class parameter
         """
 
         result = []
@@ -218,11 +233,11 @@ class Aggregator:
 
     def __project(self, parameters: dict) -> None:
         """
-        Alters the form "col" takes while performing operations.
-        It's a result pipeline method, so the result will replace "col"
+        Alters the form "__col" takes while performing operations.
+        It's a result pipeline method, so the result will replace "__col"
 
-        :param parameters: Dictionary which will draw the new form "col" will take
-        :return: None, alters "col" class parameter
+        :param parameters: Dictionary which will draw the new form "__col" will take
+        :return: None, alters "__col" class parameter
         """
         ret = []
         id_number = None if "_id" not in parameters and parameters["_id"] != -1 else parameters["_id"]
@@ -261,41 +276,56 @@ class Aggregator:
     def aggregate(self, pipelines: list[dict]) -> list[dict]:
         """
         This method exists to actually perform the aggregation operation.
-        As such, it'll iterate over a series of pipelines procedurally while altering the original "col" class parameter
+        As such, it'll iterate over a series of pipelines procedurally while altering the original "__col" class parameter
         in accordance with the requested parameters for those pipelines
 
-        :param pipelines: List of dictionaries detailing which operations to perform over "col" and which parameters
+        :param pipelines: List of dictionaries detailing which operations to perform over "__col" and which parameters
         to use in those operations
-        :return: the resulting "col" parameter in order to be able ot be used externally
+        :return: the resulting "__col" parameter in order to be able ot be used externally
         """
 
         for pipeline in pipelines:
-            pipeline_keys = [*pipeline]
-            pipeline_values = [*pipeline.values()]
+            pipeline_keys = [*pipeline][0]
+            pipeline_values = [*pipeline.values()][0]
             operation = pipeline_keys[0]
 
             if operation == "$find":
-                self.__find(self.__find(pipeline_values[0]))
+                try:
+                    assert (isinstance(pipeline_values, dict))
+                    self.__find(pipeline_values)
+                except AssertionError:
+                    print("Parameters must be a dictionary for $find, skipping")
 
             elif operation == "$lookup":
-                with pipeline_values[0] as parameters:
-                    self.__lookup(parameters["local_field"], parameters["foreign_collection"],
-                                  parameters["foreign_field"], parameters["as"])
+                self.__lookup(pipeline_values["local_field"], pipeline_values["foreign_collection"],
+                              pipeline_values["foreign_field"], pipeline_values["as"])
 
             elif operation == "$unwind":
-                self.__unwind(pipeline_values[0])
+                try:
+                    assert (pipeline_values in [*self.col[0]] and isinstance(pipeline_values, list or tuple))
+                    self.__unwind(pipeline_values)
+                except AssertionError:
+                    if pipeline_values not in [*self.col[0]]:
+                        print(f"Field {pipeline_values} isn't present in the collection,skipping")
+                    else:
+                        print(f"Field {pipeline_values} isn't a tuple or array, thus it isn't unwindable, skipping")
 
             elif operation == "$sort":
-                with pipeline_values[0] as parameters:
-                    self.__sort(list(parameters)[0], list(parameters.values())[0])
+                try:
+                    assert (pipeline_values in [*self.col[0]])
+                except AssertionError:
+                    print(f"Field {pipeline_values} not found, skipping pipeline")
 
             elif operation == "$sum":
-                self.__summa(pipeline_values[0])
+                self.__summa(pipeline_values)
 
             elif operation == "$group":
-                with pipeline_values[0] as parameters:
-                    self.__group(parameters["key"], parameters["values"]) if parameters["values"] \
-                        else self.__group(parameters["key"])
+                try:
+                    with pipeline_values["_id"] as id_field:
+                        pipeline_values.pop("_id")
+                        self.__group(id_field, pipeline_values) if pipeline_values else self.__group(id_field)
+                except KeyError:
+                    print("No _id field found, skipping pipeline")
 
             elif operation == "$project":
                 with pipeline_values[0] as parameters:
@@ -305,4 +335,3 @@ class Aggregator:
                 print(f"Pipeline {operation} not recognized, skipping")
 
         return self.col
-
