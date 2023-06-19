@@ -19,13 +19,13 @@ class BaseFile:
         else:
             raise FErrors.NoCollectionsError
 
-    def get_collection(self, name: str):
+    def get_collection(self, name: str) -> Collection or None:
         try:
             return Collection([e for e in self.collections if e["name"] == name][0], self.file)
         except KeyError:
             print(f"Collection {name} not found")
 
-    def create_collection(self, name: str, prototype: dict = {}):
+    def create_collection(self, name: str, prototype: dict = {}) -> None:
         if not name:
             print("A collection name is needed")
         elif name in [e["name"] for e in self.collections]:

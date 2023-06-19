@@ -23,6 +23,7 @@ wheels/
 BaseCore/kill.py
 *.egg-info/
 .installed.cfg
+Propuesta_proyecto_ShrewmouseDB.md
 *.egg
 venv
 .idea
